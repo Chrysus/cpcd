@@ -238,6 +238,7 @@ int copy_files_from_iso(CdIo *p_cdio, iso9660_t *p_iso)
 	if (iso9660_stat_s::_STAT_FILE == p_file_data->type) {
 
 	  // HACK - only copy file named...
+	  /*
 	  char search_filename[] = "43.mp3";
 	  char *p_search_filename = search_filename;
 	  
@@ -246,8 +247,23 @@ int copy_files_from_iso(CdIo *p_cdio, iso9660_t *p_iso)
 	  char *p_clean_filename = clean_filename;
 	  int filename_len =  iso9660_name_translate(p_filename, p_clean_filename);
 	  int  found_file = 0 == (strcmp(p_clean_filename, p_search_filename));
+	  */
+	  bool found_file = true;
+
+	  // Don't overwrite existing files
+	  char *p_filename = p_file_data->filename;
+	  char clean_filename[128]; //<-- HACK
+	  char *p_clean_filename = clean_filename;
+	  int filename_len =  iso9660_name_translate(p_filename, p_clean_filename);
 	  
-	  if (found_file) {
+	  bool file_exists = false;
+	  FILE *fp = fopen(p_clean_filename, "r");
+	  if (fp) {
+	    file_exists = true;
+	    fclose(fp);
+	  }
+	  
+	  if (found_file && false == file_exists) {
 	    copy_file(p_iso, p_file_data);
 	  }
 	}
