@@ -91,7 +91,7 @@ int g_bad_blocks[128];
 // main
 int main(int argc, const char *argv[])
 {
-  // Globals
+  // Initialize Globals
   g_lsn = 0;
   g_buffer = NULL;
   
@@ -100,7 +100,7 @@ int main(int argc, const char *argv[])
 
   // RESUME HACK
   read_resume_file();
-  
+  // END RESUME HACK
 
   lsn_t start_lsn = -1;
   if (argc > 1) {
@@ -315,10 +315,10 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
   long int bytes_to_read = blocks_to_read * ISO_BLOCKSIZE;
   long int buffer_size = bytes_to_read;
   
-  g_buffer = malloc(buffer_size);
+  g_buffer = calloc(buffer_size, 1);
   char *cur_buffer = (char *)g_buffer;
 
-  const int offset = ISO_BLOCKSIZE / sizeof(char);
+  const int offset_increment = ISO_BLOCKSIZE / sizeof(char);
 
   long int blocks_read = 0;
   long int bytes_read = 0;
@@ -326,10 +326,6 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
   lsn_t cur_lsn = start_lsn;
   lsn_t last_lsn = end_lsn;
 
-  if (g_lsn != -1) {
-    cur_lsn = g_lsn;
-  }
-  
   while (blocks_read < blocks_to_read && cur_lsn <= last_lsn) {
     /*
 
@@ -350,16 +346,18 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
       g_lsn = cur_lsn;
 
       // Advance the buffer past this block
-      cur_buffer = cur_buffer + offset;
+      cur_buffer = cur_buffer + offset_increment;
       
       continue;
     }
 
+    g_lsn = cur_lsn;
+    
     long int cur_bytes_read = iso9660_iso_seek_read (p_iso, cur_buffer, cur_lsn, 1 /* blocks to read */);
     blocks_read++;
     bytes_read += cur_bytes_read;
 
-    cur_buffer = cur_buffer + offset;
+    cur_buffer = cur_buffer + offset_increment;
 
     // sanilty check
     if (cur_bytes_read != ISO_BLOCKSIZE) {
@@ -370,7 +368,6 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
       printf("\nError - read error: %i\n", cur_lsn);
     } else {
       // printf(".");
-      g_lsn = cur_lsn;
     }
 
     cur_lsn += 1;
@@ -444,6 +441,8 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
   uint32_t size = p_file_data->size;
 
   // Output
+  printf("-- %s --\n\n", p_clean_filename);
+
   printf("Reading: %s\n", p_clean_filename);
   printf("Start:   %i\n", lsn);
   
@@ -451,20 +450,21 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
   long int blocks_to_read = (size / ISO_BLOCKSIZE) + 1; //<-- over-read, then toss the extra bytes
   long int bytes_to_read = blocks_to_read * ISO_BLOCKSIZE;
 
-  g_buffer = malloc(bytes_to_read);
+  g_buffer = calloc(bytes_to_read, 1);
 
-  char *cur_buffer = (char *)g_buffer;
-  const int offset = ISO_BLOCKSIZE / sizeof(char);
-
+  unsigned char *cur_buffer = (unsigned char *)g_buffer;
+  const int offset_increment = ISO_BLOCKSIZE / sizeof(unsigned char);
   
   long int blocks_read = 0;
   long int bytes_read = 0;
   lsn_t cur_lsn = lsn;
   lsn_t last_lsn = lsn + blocks_to_read;
 
+  // RESUME HACK
   if (g_lsn != -1) {
     cur_lsn = g_lsn;
   }
+  // END RESUME HACK
   
   while (blocks_read < blocks_to_read && cur_lsn < last_lsn) {
 
@@ -474,30 +474,29 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
       g_lsn = cur_lsn;
 
       // Advance the buffer past this block
-      cur_buffer = cur_buffer + offset;
+      cur_buffer = cur_buffer + offset_increment;
 
       continue;
     }
+    
+    g_lsn = cur_lsn;
     
     long int cur_bytes_read = iso9660_iso_seek_read (p_iso, cur_buffer, cur_lsn, 1 /* blocks to read */);
     blocks_read++;
     bytes_read += cur_bytes_read;
 
-    cur_buffer = cur_buffer + offset;
+    cur_buffer = cur_buffer + offset_increment;
 
     if (cur_bytes_read == 0) {
       printf("\nError - read error: %i\n", cur_lsn);
     } else {
       // printf(".");
-      g_lsn = cur_lsn;
     }
 
     //cur_lsn += ISO_BLOCKSIZE; //<-- not sure about this...
     //
     cur_lsn += 1;
   }
-
-  printf("\n");
 
   // Error Handling
   /*
@@ -527,7 +526,7 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
     uint32_t write_block_size = 10000; // 10k
     int32_t remaining_bytes_to_write = size;
 
-    printf("%s\n", p_clean_filename);
+    printf("Writing: %s\n", p_clean_filename);
 
     while (0 < remaining_bytes_to_write) {
       if (remaining_bytes_to_write < write_block_size) {
@@ -549,6 +548,8 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
   free(g_buffer);
   g_buffer = NULL;
 
+  printf("\n");
+  
   return 0;
 }
 
@@ -582,7 +583,7 @@ void read_resume_file() {
 
   FILE *fp = fopen(resume_filename, "r");
   if (fp) {
-    while (EOF != fscanf(fp, "%i\n", p_bad_block)) {
+    while (EOF != fscanf(fp, "%i\n", p_bad_block) && p_bad_block < &g_bad_blocks[127]) {
       p_bad_block++;
     }
     fclose(fp);
