@@ -373,6 +373,9 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
     cur_lsn += 1;
   }
 
+  // Read file from CD complete
+  g_lsn = -1; //<-- reset g_lsn to default (TODO - make this cleaner)
+
   printf("\n");
 
 
@@ -497,6 +500,10 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
     //
     cur_lsn += 1;
   }
+
+  // Read file from CD complete
+  g_lsn = -1; //<-- reset g_lsn to default (TODO - make this cleaner)
+
 
   // Error Handling
   /*
