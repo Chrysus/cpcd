@@ -50,6 +50,10 @@ using namespace std;
     a. check for errors
  */
 
+// Defines
+
+#define DEFAULT_LSN -1
+
 // Forward Declarations
 int clone_cd(CdIo_t *p_cdio);
 int copy_cd_files(CdIo_t *p_cdio);
@@ -92,7 +96,7 @@ int g_bad_blocks[128];
 int main(int argc, const char *argv[])
 {
   // Initialize Globals
-  g_lsn = 0;
+  g_lsn = DEFAULT_LSN;
   g_buffer = NULL;
   
   // Parse args
@@ -102,18 +106,6 @@ int main(int argc, const char *argv[])
   read_resume_file();
   // END RESUME HACK
 
-  lsn_t start_lsn = -1;
-  if (argc > 1) {
-    start_lsn = atoi(argv[1]);
-  }
-
-  lsn_t end_lsn = -1;
-  if (argc > 2) {
-    end_lsn = atoi(argv[2]);
-  }
-
-  g_lsn = start_lsn;
-
   // Error Handler
   atexit(exit_attempt);
 
@@ -121,21 +113,15 @@ int main(int argc, const char *argv[])
 
   int cd_available = is_cd_available(p_cdio);
   if (cd_available) {
-
-    // HACK
-    if (argc > 2 && start_lsn <= end_lsn) {
-      copy_blocks(p_cdio, start_lsn, end_lsn);
-    } else {
-      
-      try {
-	copy_cd_files(p_cdio);
-      } catch (...) {
-	printf("Exception!\n");
-      }
+    try {
+      copy_cd_files(p_cdio);
+    } catch (...) {
+      printf("Exception!\n");
+      return 1;
     }
   } else {
     cdio_destroy(p_cdio);
-    return 1;
+    return 2;
   }
   
   cdio_destroy(p_cdio);
@@ -374,7 +360,7 @@ int copy_blocks_from_iso(iso9660_t *p_iso, lsn_t start_lsn, lsn_t end_lsn) {
   }
 
   // Read file from CD complete
-  g_lsn = -1; //<-- reset g_lsn to default (TODO - make this cleaner)
+  g_lsn = DEFAULT_LSN;  //<-- reset g_lsn to default (TODO - make this cleaner)
 
   printf("\n");
 
@@ -464,7 +450,7 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
   lsn_t last_lsn = lsn + blocks_to_read;
 
   // RESUME HACK
-  if (g_lsn != -1) {
+  if (g_lsn != DEFAULT_LSN) {
     cur_lsn = g_lsn;
   }
   // END RESUME HACK
@@ -502,7 +488,7 @@ int copy_file(iso9660_t *p_iso, iso9660_stat_t *p_file_data)
   }
 
   // Read file from CD complete
-  g_lsn = -1; //<-- reset g_lsn to default (TODO - make this cleaner)
+  g_lsn = DEFAULT_LSN; //<-- reset g_lsn to default (TODO - make this cleaner)
 
 
   // Error Handling
